@@ -1,17 +1,21 @@
-# Medical Lab Result SLM Fine-Tuning
+# Fine-Tuning DeepSeek-R1 LLM for Medical Laboratory Test Analysis
 
-This repository contains a synthetic medical lab dataset and a Jupyter Notebook pipeline designed to fine-tune Small Language Models (SLMs) like DeepSeek-R1-Distill-Llama-8B to act in the role of a highly capable medical laboratory assistant. 
+This repository contains a Jupyter notebook and supporting files for fine-tuning the
+`unsloth/DeepSeek-R1-Distill-Llama-8B` model on a custom medical lab test dataset. The
+notebook is optimized to run on a local machine with limited GPU memory (e.g., RTX 2060
+6GB VRAM) using memory-saving techniques such as 4-bit quantization, LoRA adapters, and
+sequence length reduction.
 
-The primary goal of this project is to build an AI assistant that can analyze common lab results, correctly identify abnormalities based on standard clinical reference ranges, and intelligently recommend logical follow-up diagnostic tests.
+## Contents
 
-## 📂 Repository Contents
+- `fine_tune_unsloth.ipynb` - Main notebook demonstrating setup, model loading, dataset
+  preparation, training, inference, and saving the fine-tuned model.
+- `fine_tuning_lab_tests.jsonl` - Example dataset of lab test conversations in JSONL format.
+- `.env` - (not checked in) Contains `HUGGINGFACE_TOKEN` and optionally `WANDB_API_KEY`.
+- `myenv/` - Python virtual environment used for dependencies.
+- `outputs/` - Directory where training outputs are stored.
 
-*   **`fine_tuning_lab_tests.jsonl`**: The primary dataset formatted in JSONL (JSON Lines) ready for conversational fine-tuning.*   
-*   **`fine_tune_unsloth.ipynb`**: A complete Jupyter Notebook pipeline for fine-tuning the model locally. It is heavily optimized (using Unsloth and 4-bit LoRA) to run comfortably on an 8GB VRAM GPU.
-
-## 📊 Dataset Overview
-
-The dataset consists of **100 conversational records** spread evenly across **10 common and vital laboratory tests**:
+The dataset consists of **1000 conversational records** spread evenly across **10 common and vital laboratory tests**:
 
 1.  Glucose (Fasting & Random)
 2.  Hemoglobin (Hgb)
@@ -24,40 +28,56 @@ The dataset consists of **100 conversational records** spread evenly across **10
 9.  Alanine Aminotransferase (ALT)
 10. Calcium (Serum)
 
-### Structure of the Data
-Each record is structured as a chat completion with exactly three roles:
-*   **System**: Instructs the model on its persona ("You are a medical laboratory assistant...").
-*   **User**: Provides the Test Name, the specific Result, and the normal Reference Range. *(Note: LOINC codes have been intentionally excluded from the input to promote natural language processing).*
-*   **Assistant**: Contains the AI's analysis, stating whether the result is Normal, Borderline, High, Low, or Critical. Crucially, it also includes **diagnostic follow-up suggestions** (e.g., suggesting an HbA1c test for a high glucose reading).
 
-## 🚀 Fine-Tuning Environment (8GB VRAM Optimized)
+## Getting Started
 
-The `fine_tune_unsloth.ipynb` notebook provides a step-by-step guide to fine-tuning. It utilizes the [Unsloth](https://github.com/unslothai/unsloth) library, which is currently the gold standard for memory-efficient LLM/SLM fine-tuning on consumer hardware.
+1. **Clone the repository**:
+   ```bash
+   git clone <repo-url> medlab
+   cd medlab
+   ```
 
-**Optimizations Included:**
-*   **4-Bit Quantization**: Shrinks the 8 Billion parameter model down to ~5.5GB of VRAM.
-*   **LoRA Adapters (Rank 16)**: Rather than full fine-tuning, tiny adapter weights are trained on the attention and MLP layers.
-*   **Gradient Checkpointing & Accumulation**: Keeps memory spikes low during the backward pass while simulating larger batch sizes.
-*   **DeepSeek-R1 CoT Formatting**: The dataset is automatically mapped into the specific `<think>` tags required by the DeepSeek-R1 reasoning models to maintain chain-of-thought capabilities.
+2. **Create and activate a Python environment** (Python 3.11 recommended):
+   ```bash
+   python -m venv myenv
+   source myenv/bin/activate
+   pip install --upgrade pip
+   ```
 
-### Prerequisites
+3. **Install dependencies** (notebook cell also handles this):
+   ```bash
+   pip install -r requirements.txt
+   # or manually: unsloth, unsloth_zoo, datasets, wandb, trl, peft, transformers, bitsandbytes, python-dotenv
+   ```
 
-To run the notebook locally, you will need:
-*   An NVIDIA GPU with at least 8GB of VRAM.
-*   A Hugging Face account and Access Token (for downloading the base model).
-*   (Optional) A Weights & Biases account (for tracking training loss).
+4. **Create a `.env` file** with your Hugging Face token:
+   ```ini
+   HUGGINGFACE_TOKEN=hf_...
+   WANDB_API_KEY=...
+   ```
 
-## 💡 Usage Instructions
+5. **Run the notebook**:
+   ```bash
+   jupyter lab fine_tune_unsloth.ipynb
+   ```
+   Follow the cells sequentially. The model will automatically adjust sequence length
+   to fit your GPU.
 
-1.  Clone this repository to your local machine:
-    ```bash
-    git clone https://github.com/israeltn/medical_lab_result_SLM.git
-    cd medical_lab_result_SLM
-    ```
-2.  Open `fine_tune_unsloth.ipynb` in your preferred Jupyter environment (e.g., JupyterLab, VS Code).
-3.  Set your Hugging Face API token in the authentication block.
-4.  Run all cells sequentially. 
-5.  *(Optional)* If you hit an Out Of Memory (OOM) error, try reducing the `max_seq_length` variable from `2048` to `1024` or `512` in Step 2 of the notebook.
+## Notes
 
-## ⚠️ Medical Disclaimer
-This dataset is **synthetic** and generated for the purpose of AI training and research. It should **not** be used for actual medical diagnosis without the oversight of a licensed clinical professional.
+- The notebook includes logic to progressively reduce `max_seq_length` (512 → 256 → 128 → 64)
+  to fit within VRAM constraints. For RTX 2060 (6GB), a maximum of 64 tokens is required when
+  using the fused cross-entropy loss.
+- Training uses LoRA adapters (rank 8) and the `adamw_8bit` optimizer to minimize memory usage.
+- It is possible to save only adapter weights (~150MB) or merge into a full 16-bit model (~16GB).
+
+## License
+
+This project is provided for educational purposes. Ensure compliance with the licensing terms of
+models and libraries used (e.g., UnsLoth, Transformers).
+
+## Acknowledgements
+
+- [UnsLoth](https://github.com/unslothai/unsloth) for memory-efficient model wrappers.
+- Hugging Face Transformers and Datasets.
+- The RTX 2060 experiments were adapted from local-4GB-finetuning examples.
